@@ -1,0 +1,6 @@
+venv/
+qmk_firmware/
+__pycache__/
+*.pyc
+presets.json
+.build/

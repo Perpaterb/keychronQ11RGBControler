@@ -1,0 +1,3 @@
+VIA_ENABLE = yes
+RAW_HID_ENABLE = yes
+ENCODER_MAP_ENABLE = yes

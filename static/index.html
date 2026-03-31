@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keychron Q11 RGB Controller</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 30px 20px;
+        }
+        .container { width: 100%; max-width: 900px; }
+        h1 { font-size: 1.6rem; font-weight: 600; margin-bottom: 4px; color: #fff; }
+        .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 24px; }
+        .status-bar {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 20px; padding: 10px 14px;
+            background: #1a1a1a; border-radius: 8px; font-size: 0.85rem;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #444; flex-shrink: 0; }
+        .status-dot.connected { background: #22c55e; }
+        .status-dot.error { background: #ef4444; }
+        .card {
+            background: #141414; border: 1px solid #222;
+            border-radius: 12px; padding: 20px; margin-bottom: 14px;
+        }
+        .card-title {
+            font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 0.08em; color: #555; margin-bottom: 16px;
+        }
+        .control-group { margin-bottom: 16px; }
+        .control-group:last-child { margin-bottom: 0; }
+        .control-label {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 6px;
+        }
+        .control-label span { font-size: 0.85rem; color: #bbb; }
+        .control-label .value { font-size: 0.8rem; color: #666; font-variant-numeric: tabular-nums; }
+
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none; width: 100%;
+            height: 6px; border-radius: 3px; background: #2a2a2a; outline: none; cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px;
+            border-radius: 50%; background: #fff; cursor: pointer;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #fff; cursor: pointer; border: none;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        }
+        .hue-slider {
+            background: linear-gradient(to right,
+                hsl(0,100%,50%), hsl(60,100%,50%), hsl(120,100%,50%),
+                hsl(180,100%,50%), hsl(240,100%,50%), hsl(300,100%,50%), hsl(360,100%,50%));
+        }
+        select, input[type="text"] {
+            width: 100%; padding: 8px 12px; background: #1a1a1a; color: #e0e0e0;
+            border: 1px solid #333; border-radius: 6px; font-size: 0.85rem; outline: none; cursor: pointer;
+        }
+        select:focus, input[type="text"]:focus { border-color: #555; }
+        .color-preview {
+            width: 100%; height: 40px; border-radius: 8px;
+            margin-bottom: 12px; border: 1px solid #333; transition: background-color 0.15s;
+        }
+
+        /* Mode toggle */
+        .mode-toggle {
+            display: flex; gap: 0; margin-bottom: 16px;
+            border: 1px solid #333; border-radius: 8px; overflow: hidden;
+        }
+        .mode-toggle button {
+            flex: 1; padding: 10px; background: #1a1a1a; color: #888;
+            border: none; font-size: 0.85rem; cursor: pointer; transition: all 0.15s;
+        }
+        .mode-toggle button.active { background: #1d4ed8; color: #fff; }
+        .mode-toggle button:not(.active):hover { background: #222; }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 16px; border: 1px solid #333; border-radius: 8px;
+            background: #1a1a1a; color: #e0e0e0; font-size: 0.85rem;
+            cursor: pointer; transition: background 0.15s, border-color 0.15s;
+        }
+        .btn:hover { background: #222; border-color: #444; }
+        .btn.primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+        .btn.primary:hover { background: #2563eb; }
+        .btn.small { padding: 6px 10px; font-size: 0.75rem; }
+
+        /* Keyboard visual */
+        .keyboard-wrap {
+            display: flex; gap: 20px; justify-content: center;
+            padding: 16px; background: #0a0a0a; border-radius: 10px;
+            overflow-x: auto; margin-bottom: 12px;
+        }
+        .kb-half { display: flex; flex-direction: column; gap: 3px; }
+        .kb-row { display: flex; gap: 3px; }
+        .kb-key {
+            height: 36px; min-width: 36px; border-radius: 5px;
+            border: 1px solid #333; background: #1a1a1a; color: #999;
+            font-size: 0.6rem; display: flex; align-items: center;
+            justify-content: center; cursor: pointer; user-select: none;
+            transition: border-color 0.1s, box-shadow 0.1s; position: relative;
+        }
+        .kb-key:hover { border-color: #555; }
+        .kb-key.selected { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+        .kb-key .key-color {
+            position: absolute; bottom: 2px; left: 3px; right: 3px;
+            height: 3px; border-radius: 2px;
+        }
+
+        /* Key color controls */
+        .key-color-controls {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        }
+        .key-color-controls label { font-size: 0.8rem; color: #888; }
+        .key-color-controls input[type="color"] {
+            width: 40px; height: 28px; border: 1px solid #333;
+            border-radius: 4px; background: #1a1a1a; cursor: pointer; padding: 2px;
+        }
+
+        /* Preset grid */
+        .preset-row {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+            margin-bottom: 10px;
+        }
+        .preset-btn {
+            padding: 10px 6px; border: 1px solid #333; border-radius: 8px;
+            background: #1a1a1a; color: #e0e0e0; font-size: 0.75rem;
+            cursor: pointer; transition: all 0.15s; text-align: center;
+        }
+        .preset-btn:hover { background: #222; border-color: #444; }
+        .preset-btn .preset-label { color: #555; font-size: 0.65rem; display: block; margin-bottom: 3px; }
+        .preset-btn .preset-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .preset-btn .preset-swatch {
+            width: 100%; height: 3px; border-radius: 2px; margin-top: 6px;
+        }
+        .save-btn {
+            padding: 10px 6px; border: 1px solid #333; border-radius: 8px;
+            background: #1a1a1a; color: #e0e0e0; font-size: 0.75rem;
+            cursor: pointer; transition: all 0.15s; text-align: center;
+        }
+        .save-btn:hover { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+
+        /* Preset name input */
+        .preset-name-row {
+            display: flex; gap: 8px; align-items: center; margin-bottom: 10px;
+        }
+        .preset-name-row input { flex: 1; }
+
+        .toast {
+            position: fixed; bottom: 24px; left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #222; color: #fff; padding: 10px 20px;
+            border-radius: 8px; font-size: 0.85rem; opacity: 0;
+            transition: transform 0.3s, opacity 0.3s; pointer-events: none; z-index: 10;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+        .row { display: flex; gap: 10px; margin-bottom: 14px; }
+        .row > * { flex: 1; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Keychron Q11</h1>
+    <p class="subtitle">RGB Lighting Controller</p>
+
+    <div class="status-bar">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Connecting...</span>
+        <span style="margin-left:auto; cursor:pointer; color:#555;" onclick="loadState()">Refresh</span>
+    </div>
+
+    <!-- Mode Toggle -->
+    <div class="card">
+        <div class="card-title">Mode</div>
+        <div class="mode-toggle">
+            <button id="mode-effect" class="active" onclick="setMode('effect')">Effect</button>
+            <button id="mode-perkey" onclick="setMode('per_key')">Per Key</button>
+        </div>
+
+        <!-- Effect Mode Controls -->
+        <div id="effect-controls">
+            <div class="control-group">
+                <div class="control-label"><span>Effect</span></div>
+                <select id="effect-select"></select>
+            </div>
+            <div class="color-preview" id="color-preview"></div>
+            <div class="control-group">
+                <div class="control-label"><span>Hue</span><span class="value" id="hue-value">0</span></div>
+                <input type="range" id="hue-slider" class="hue-slider" min="0" max="255" value="0">
+            </div>
+            <div class="control-group">
+                <div class="control-label"><span>Saturation</span><span class="value" id="sat-value">255</span></div>
+                <input type="range" id="sat-slider" min="0" max="255" value="255">
+            </div>
+        </div>
+
+        <!-- Per-Key Mode Controls -->
+        <div id="perkey-controls" style="display:none">
+            <div class="keyboard-wrap">
+                <div class="kb-half" id="kb-left"></div>
+                <div class="kb-half" id="kb-right"></div>
+            </div>
+            <div class="key-color-controls">
+                <label>Color:</label>
+                <input type="color" id="key-color" value="#ff0000">
+                <button class="btn small" onclick="applyColorToSelected()">Paint Selected</button>
+                <button class="btn small" onclick="selectAllKeys()">Select All</button>
+                <button class="btn small" onclick="clearSelection()">Clear Selection</button>
+                <button class="btn small" onclick="paintAllKeys()">Paint All</button>
+            </div>
+        </div>
+
+        <!-- Shared controls -->
+        <div class="control-group" style="margin-top:16px">
+            <div class="control-label"><span>Brightness</span><span class="value" id="brightness-value">128</span></div>
+            <input type="range" id="brightness-slider" min="0" max="255" value="128">
+        </div>
+        <div class="control-group" id="speed-group">
+            <div class="control-label"><span>Speed</span><span class="value" id="speed-value">128</span></div>
+            <input type="range" id="speed-slider" min="0" max="255" value="128">
+        </div>
+    </div>
+
+    <!-- Presets -->
+    <div class="card">
+        <div class="card-title">Presets - Click to apply</div>
+        <div class="preset-row" id="preset-apply-row"></div>
+
+        <div class="card-title" style="margin-top:12px">Save current settings to</div>
+        <div class="preset-name-row">
+            <label style="font-size:0.8rem; color:#888; white-space:nowrap;">Preset name:</label>
+            <input type="text" id="save-name" placeholder="My Preset" maxlength="20">
+        </div>
+        <div class="preset-row" id="preset-save-row"></div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const qs = sel => document.querySelector(sel);
+
+// --- Q11 Keyboard Layout ---
+// [label, width_units, led_index]
+const KB_LEFT = [
+    [["Knob",1,0],["Esc",1,1],["F1",1,2],["F2",1,3],["F3",1,4],["F4",1,5],["F5",1,6],["F6",1,7]],
+    [["M1",1,8],["`",1,9],["1",1,10],["2",1,11],["3",1,12],["4",1,13],["5",1,14],["6",1,15]],
+    [["M2",1,16],["Tab",1.5,17],["Q",1,18],["W",1,19],["E",1,20],["R",1,21],["T",1,22]],
+    [["M3",1,23],["Caps",1.75,24],["A",1,25],["S",1,26],["D",1,27],["F",1,28],["G",1,29]],
+    [["M4",1,30],["Shift",2.25,31],["Z",1,32],["X",1,33],["C",1,34],["V",1,35],["B",1,36]],
+    [["M5",1,37],["Ctrl",1.25,38],["Win",1.25,39],["Alt",1.25,40],["Space",2.75,41]],
+];
+const KB_RIGHT = [
+    [["F7",1,42],["F8",1,43],["F9",1,44],["F10",1,45],["F11",1,46],["F12",1,47],["Del",1,48],["Knob",1,49]],
+    [["7",1,50],["8",1,51],["9",1,52],["0",1,53],["-",1,54],["=",1,55],["Bksp",2,56]],
+    [["Y",1,57],["U",1,58],["I",1,59],["O",1,60],["P",1,61],["[",1,62],["]",1,63],["\\",1.5,64]],
+    [["H",1,65],["J",1,66],["K",1,67],["L",1,68],[";",1,69],["'",1,70],["Enter",2.25,71]],
+    [["N",1,72],["M",1,73],[",",1,74],[".",1,75],["/",1,76],["Shift",1.75,77],["Up",1,78]],
+    [["Space",2.75,79],["Alt",1,80],["Fn",1,81],["Fn",1,82],["Ctrl",1,83],["Left",1,84],["Dn",1,85],["Rt",1,86]],
+];
+
+const UNIT = 38; // pixels per key unit
+let currentMode = "effect";
+let selectedKeys = new Set();
+let keyColors = {}; // {led_index: "#rrggbb"}
+let keyElements = {}; // {led_index: DOM element}
+let presets = {};
+let effectsList = [];
+let debounceTimers = {};
+
+function showToast(msg, ms = 2000) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), ms);
+}
+
+function setStatus(ok, text) {
+    $("status-dot").className = "status-dot " + (ok ? "connected" : "error");
+    $("status-text").textContent = text;
+}
+
+function qmkHueToCss(h) { return Math.round((h / 255) * 360); }
+
+function updateColorPreview() {
+    const h = qmkHueToCss(parseInt($("hue-slider").value));
+    const s = Math.round((parseInt($("sat-slider").value) / 255) * 100);
+    $("color-preview").style.backgroundColor = `hsl(${h},${s}%,50%)`;
+    $("sat-slider").style.background = `linear-gradient(to right, hsl(${h},0%,50%), hsl(${h},100%,50%))`;
+}
+
+async function api(endpoint, method = "GET", body = null) {
+    const opts = { method, headers: { "Content-Type": "application/json" } };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch("/api/" + endpoint, opts);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+}
+
+function debouncedSend(key, fn, delay = 80) {
+    clearTimeout(debounceTimers[key]);
+    debounceTimers[key] = setTimeout(fn, delay);
+}
+
+// --- Mode ---
+function setMode(mode) {
+    currentMode = mode;
+    $("mode-effect").className = mode === "effect" ? "active" : "";
+    $("mode-perkey").className = mode === "per_key" ? "active" : "";
+    $("effect-controls").style.display = mode === "effect" ? "" : "none";
+    $("perkey-controls").style.display = mode === "per_key" ? "" : "none";
+    $("speed-group").style.display = mode === "effect" ? "" : "none";
+}
+
+// --- Keyboard Rendering ---
+function buildHalf(container, layout) {
+    container.innerHTML = "";
+    for (const row of layout) {
+        const rowEl = document.createElement("div");
+        rowEl.className = "kb-row";
+        for (const [label, w, idx] of row) {
+            const key = document.createElement("div");
+            key.className = "kb-key";
+            key.style.width = (w * UNIT) + "px";
+            key.textContent = label;
+            key.dataset.idx = idx;
+
+            const swatch = document.createElement("div");
+            swatch.className = "key-color";
+            key.appendChild(swatch);
+
+            key.addEventListener("click", (e) => {
+                if (e.shiftKey) {
+                    // Range select not implemented, just toggle
+                }
+                toggleKeySelection(idx, key);
+            });
+            key.addEventListener("mousedown", (e) => {
+                if (e.buttons === 1 && e.ctrlKey) {
+                    toggleKeySelection(idx, key);
+                }
+            });
+            key.addEventListener("mouseenter", (e) => {
+                if (e.buttons === 1 && !e.ctrlKey) {
+                    selectKey(idx, key);
+                    applyColorToKey(idx, $("key-color").value);
+                }
+            });
+
+            keyElements[idx] = key;
+            rowEl.appendChild(key);
+        }
+        container.appendChild(rowEl);
+    }
+}
+
+function toggleKeySelection(idx, el) {
+    if (selectedKeys.has(idx)) {
+        selectedKeys.delete(idx);
+        el.classList.remove("selected");
+    } else {
+        selectedKeys.add(idx);
+        el.classList.add("selected");
+    }
+}
+
+function selectKey(idx, el) {
+    selectedKeys.add(idx);
+    el.classList.add("selected");
+}
+
+function selectAllKeys() {
+    for (const [idx, el] of Object.entries(keyElements)) {
+        selectedKeys.add(parseInt(idx));
+        el.classList.add("selected");
+    }
+}
+
+function clearSelection() {
+    selectedKeys.clear();
+    for (const el of Object.values(keyElements)) {
+        el.classList.remove("selected");
+    }
+}
+
+function applyColorToKey(idx, color) {
+    keyColors[idx] = color;
+    const el = keyElements[idx];
+    if (el) {
+        el.querySelector(".key-color").style.backgroundColor = color;
+    }
+}
+
+function applyColorToSelected() {
+    const color = $("key-color").value;
+    for (const idx of selectedKeys) {
+        applyColorToKey(idx, color);
+    }
+    if (selectedKeys.size > 0) {
+        showToast(`Painted ${selectedKeys.size} key(s)`);
+    }
+}
+
+function paintAllKeys() {
+    const color = $("key-color").value;
+    for (const idx of Object.keys(keyElements)) {
+        applyColorToKey(parseInt(idx), color);
+    }
+    showToast("Painted all keys");
+}
+
+function loadKeyColorsFromPreset(keys) {
+    // Clear existing
+    keyColors = {};
+    for (const el of Object.values(keyElements)) {
+        el.querySelector(".key-color").style.backgroundColor = "";
+    }
+    if (!keys) return;
+    for (const [idx, rgb] of Object.entries(keys)) {
+        const [r, g, b] = rgb;
+        const hex = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+        applyColorToKey(parseInt(idx), hex);
+    }
+}
+
+function getKeyColorsForSave() {
+    const result = {};
+    for (const [idx, hex] of Object.entries(keyColors)) {
+        const r = parseInt(hex.substr(1, 2), 16);
+        const g = parseInt(hex.substr(3, 2), 16);
+        const b = parseInt(hex.substr(5, 2), 16);
+        result[idx] = [r, g, b];
+    }
+    return result;
+}
+
+// --- Effects ---
+async function loadEffects() {
+    effectsList = await api("effects");
+    const sel = $("effect-select");
+    sel.innerHTML = "";
+    for (const e of effectsList) {
+        const opt = document.createElement("option");
+        opt.value = e.id;
+        opt.textContent = e.name;
+        sel.appendChild(opt);
+    }
+}
+
+async function loadState() {
+    try {
+        const state = await api("state");
+        $("brightness-slider").value = state.brightness;
+        $("brightness-value").textContent = state.brightness;
+        $("speed-slider").value = state.speed;
+        $("speed-value").textContent = state.speed;
+        $("hue-slider").value = state.hue;
+        $("hue-value").textContent = state.hue;
+        $("sat-slider").value = state.saturation;
+        $("sat-value").textContent = state.saturation;
+        $("effect-select").value = state.effect;
+        updateColorPreview();
+        setStatus(true, "Connected - Keychron Q11");
+    } catch (e) {
+        setStatus(false, e.message);
+    }
+}
+
+// --- Presets ---
+function getPresetColor(p) {
+    if (p.mode === "per_key" && p.keys && Object.keys(p.keys).length > 0) {
+        // Use first key color as swatch
+        const first = Object.values(p.keys)[0];
+        return `rgb(${first[0]},${first[1]},${first[2]})`;
+    }
+    const h = qmkHueToCss(p.hue || 0);
+    const s = Math.round(((p.saturation || 0) / 255) * 100);
+    return `hsl(${h},${s}%,50%)`;
+}
+
+async function loadPresets() {
+    presets = await api("presets");
+    renderPresets();
+}
+
+function renderPresets() {
+    const applyRow = $("preset-apply-row");
+    const saveRow = $("preset-save-row");
+    applyRow.innerHTML = "";
+    saveRow.innerHTML = "";
+
+    for (let i = 1; i <= 6; i++) {
+        const p = presets[i] || { name: `Preset ${i}`, mode: "effect", hue: 0, saturation: 255 };
+
+        // Apply button
+        const applyBtn = document.createElement("div");
+        applyBtn.className = "preset-btn";
+        applyBtn.innerHTML = `
+            <span class="preset-label">Fn+${i}</span>
+            <span class="preset-name">${p.name}</span>
+            <div class="preset-swatch" style="background:${getPresetColor(p)}"></div>
+        `;
+        applyBtn.addEventListener("click", async () => {
+            try {
+                await api(`presets/${i}/apply`, "POST");
+                showToast(`Applied: ${p.name}`);
+                // Load the preset's settings into the UI
+                if (p.mode === "per_key") {
+                    setMode("per_key");
+                    loadKeyColorsFromPreset(p.keys);
+                } else {
+                    setMode("effect");
+                    $("effect-select").value = p.effect;
+                    $("hue-slider").value = p.hue;
+                    $("hue-value").textContent = p.hue;
+                    $("sat-slider").value = p.saturation;
+                    $("sat-value").textContent = p.saturation;
+                    $("speed-slider").value = p.speed;
+                    $("speed-value").textContent = p.speed;
+                    updateColorPreview();
+                }
+                $("brightness-slider").value = p.brightness;
+                $("brightness-value").textContent = p.brightness;
+            } catch (e) {
+                showToast("Failed: " + e.message);
+            }
+        });
+        applyRow.appendChild(applyBtn);
+
+        // Save button
+        const saveBtn = document.createElement("div");
+        saveBtn.className = "save-btn";
+        saveBtn.innerHTML = `Save to<br><strong>Fn+${i}</strong>`;
+        saveBtn.addEventListener("click", () => saveToPreset(i));
+        saveRow.appendChild(saveBtn);
+    }
+}
+
+async function saveToPreset(num) {
+    const name = $("save-name").value || `Preset ${num}`;
+    const data = {
+        name: name,
+        mode: currentMode,
+        effect: parseInt($("effect-select").value),
+        brightness: parseInt($("brightness-slider").value),
+        speed: parseInt($("speed-slider").value),
+        hue: parseInt($("hue-slider").value),
+        saturation: parseInt($("sat-slider").value),
+        keys: currentMode === "per_key" ? getKeyColorsForSave() : {},
+    };
+    try {
+        await api(`presets/${num}`, "PUT", data);
+        presets[num] = data;
+        renderPresets();
+        showToast(`Saved "${name}" to Fn+${num}`);
+    } catch (e) {
+        showToast("Save failed: " + e.message);
+    }
+}
+
+// --- Event Listeners ---
+$("brightness-slider").addEventListener("input", () => {
+    $("brightness-value").textContent = $("brightness-slider").value;
+    debouncedSend("brightness", () =>
+        api("brightness", "POST", { value: parseInt($("brightness-slider").value) })
+    );
+});
+
+$("speed-slider").addEventListener("input", () => {
+    $("speed-value").textContent = $("speed-slider").value;
+    debouncedSend("speed", () =>
+        api("speed", "POST", { value: parseInt($("speed-slider").value) })
+    );
+});
+
+$("hue-slider").addEventListener("input", () => {
+    $("hue-value").textContent = $("hue-slider").value;
+    updateColorPreview();
+    debouncedSend("color", () =>
+        api("color", "POST", {
+            hue: parseInt($("hue-slider").value),
+            saturation: parseInt($("sat-slider").value),
+        })
+    );
+});
+
+$("sat-slider").addEventListener("input", () => {
+    $("sat-value").textContent = $("sat-slider").value;
+    updateColorPreview();
+    debouncedSend("color", () =>
+        api("color", "POST", {
+            hue: parseInt($("hue-slider").value),
+            saturation: parseInt($("sat-slider").value),
+        })
+    );
+});
+
+$("effect-select").addEventListener("change", () => {
+    api("effect", "POST", { value: parseInt($("effect-select").value) });
+});
+
+// --- Init ---
+buildHalf($("kb-left"), KB_LEFT);
+buildHalf($("kb-right"), KB_RIGHT);
+
+(async () => {
+    await loadEffects();
+    await loadState();
+    await loadPresets();
+})();
+</script>
+</body>
+</html>
