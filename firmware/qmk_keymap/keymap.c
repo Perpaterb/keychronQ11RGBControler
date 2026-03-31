@@ -88,9 +88,9 @@ void housekeeping_task_user(void) {
 }
 
 // --- RGB override ---
-bool rgb_matrix_indicators_user(void) {
+bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
     if (!direct_mode) return false;
-    for (uint8_t i = 0; i < LED_COUNT; i++) {
+    for (uint8_t i = led_min; i < led_max && i < LED_COUNT; i++) {
         rgb_matrix_set_color(i, led_buffer[i][0], led_buffer[i][1], led_buffer[i][2]);
     }
     return false;
