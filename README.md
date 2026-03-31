@@ -98,18 +98,38 @@ This remaps layer 3 (Fn overlay) number keys 1-6 to F13-F18 and saves to EEPROM.
 
 ### 6. Run
 
+#### Option A: Run as a systemd service (recommended)
+
+This starts the controller automatically on boot:
+
+```bash
+sudo cp keychron-controller.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now keychron-controller
+```
+
+Useful commands:
+
+```bash
+sudo systemctl status keychron-controller   # check status
+sudo journalctl -u keychron-controller -f   # watch logs
+sudo systemctl restart keychron-controller   # restart
+```
+
+#### Option B: Run manually
+
 ```bash
 source venv/bin/activate
 python app.py
 ```
-
-Open **http://localhost:5001** in your browser.
 
 To also enable Fn+1-6 hotkeys (requires access to `/dev/input`), run with sudo:
 
 ```bash
 sudo venv/bin/python3 app.py
 ```
+
+Open **http://localhost:5001** in your browser. The port can be changed with the `PORT` environment variable.
 
 ## Usage
 
@@ -207,11 +227,12 @@ The Q11 has **89 addressable LEDs** (no knob LEDs in the RGB matrix).
 ## File Structure
 
 ```
-app.py                  Flask backend + HID communication + key listener
-static/index.html       Web UI (effect controls, visual keyboard, presets)
-requirements.txt        Python dependencies (flask, evdev)
-99-keychron.rules       udev rule for non-root HID access
-presets.json            Saved presets (auto-generated at runtime)
+app.py                          Flask backend + HID communication + key listener
+static/index.html               Web UI (effect controls, visual keyboard, presets)
+requirements.txt                Python dependencies (flask, evdev)
+keychron-controller.service     systemd unit file for auto-start on boot
+99-keychron.rules               udev rule for non-root HID access
+presets.json                    Saved presets (auto-generated at runtime)
 remap_fn_fix.py         Remap Fn+1-6 to F13-F18 (for stock firmware)
 detect_keys.py          Utility: detect keypresses on all Keychron input devices
 probe_layers.py         Utility: read keymap layers to find Fn layer

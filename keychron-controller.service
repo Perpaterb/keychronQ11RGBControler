@@ -1,0 +1,14 @@
+[Unit]
+Description=Keychron Q11 RGB Controller
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/bob/Dev/keychronControllor
+ExecStart=/home/bob/Dev/keychronControllor/venv/bin/python app.py
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

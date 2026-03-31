@@ -96,21 +96,72 @@ def save_presets(presets):
 
 
 def find_hidraw_device():
-    for entry in sorted(os.listdir("/sys/class/hidraw")):
-        device_dir = f"/sys/class/hidraw/{entry}/device"
-        uevent_path = os.path.join(device_dir, "uevent")
-        if not os.path.exists(uevent_path):
+    # Allow override via environment variable
+    env_device = os.environ.get("HIDRAW_DEVICE")
+    if env_device and os.path.exists(env_device):
+        return env_device
+
+    # Try sysfs-based discovery first (works on bare metal)
+    if os.path.isdir("/sys/class/hidraw"):
+        for entry in sorted(os.listdir("/sys/class/hidraw")):
+            device_dir = f"/sys/class/hidraw/{entry}/device"
+            uevent_path = os.path.join(device_dir, "uevent")
+            if not os.path.exists(uevent_path):
+                continue
+            with open(uevent_path) as f:
+                uevent = f.read()
+            if VID.upper() not in uevent.upper() or PID.upper() not in uevent.upper():
+                continue
+            rdesc_path = os.path.join(device_dir, "report_descriptor")
+            if os.path.exists(rdesc_path):
+                with open(rdesc_path, "rb") as f:
+                    rdesc = f.read()
+                if b'\x06\x60\xff' in rdesc:
+                    return f"/dev/{entry}"
+
+    # Fallback: probe /dev/hidraw* directly via ioctl (works in containers)
+    import struct
+    import fcntl
+    HIDIOCGRAWINFO = 0x80084803  # struct hidraw_devinfo: __u32 bustype, __s16 vid, __s16 pid
+    HIDIOCGRDESCSIZE = 0x80044801
+    HIDIOCGRDESC = 0x90044802
+    target_vid = int(VID, 16)
+    target_pid = int(PID, 16)
+
+    for entry in sorted(os.listdir("/dev")):
+        if not entry.startswith("hidraw"):
             continue
-        with open(uevent_path) as f:
-            uevent = f.read()
-        if VID.upper() not in uevent.upper() or PID.upper() not in uevent.upper():
+        path = f"/dev/{entry}"
+        try:
+            fd = os.open(path, os.O_RDWR)
+            try:
+                # Get device info (bustype, vid, pid)
+                buf = bytearray(8)
+                fcntl.ioctl(fd, HIDIOCGRAWINFO, buf)
+                _, vid, pid = struct.unpack("Ihh", buf)
+                vid &= 0xFFFF
+                pid &= 0xFFFF
+                if vid != target_vid or pid != target_pid:
+                    continue
+
+                # Get report descriptor size
+                size_buf = bytearray(4)
+                fcntl.ioctl(fd, HIDIOCGRDESCSIZE, size_buf)
+                rdesc_size = struct.unpack("I", size_buf)[0]
+
+                # Get report descriptor
+                rdesc_buf = bytearray(4 + 4096)
+                struct.pack_into("I", rdesc_buf, 0, rdesc_size)
+                fcntl.ioctl(fd, HIDIOCGRDESC, rdesc_buf)
+                rdesc = bytes(rdesc_buf[4:4 + rdesc_size])
+
+                if b'\x06\x60\xff' in rdesc:
+                    return path
+            finally:
+                os.close(fd)
+        except (OSError, IOError):
             continue
-        rdesc_path = os.path.join(device_dir, "report_descriptor")
-        if os.path.exists(rdesc_path):
-            with open(rdesc_path, "rb") as f:
-                rdesc = f.read()
-            if b'\x06\x60\xff' in rdesc:
-                return f"/dev/{entry}"
+
     return None
 
 
@@ -406,5 +457,6 @@ def apply_preset_route(num):
 
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5001))
     start_key_listener()
-    app.run(host="0.0.0.0", port=5001, debug=True, use_reloader=False)
+    app.run(host="0.0.0.0", port=port, debug=True, use_reloader=False)
