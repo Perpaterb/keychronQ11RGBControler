@@ -1,0 +1,3 @@
+# udev rule to allow non-root access to Keychron Q11 raw HID interface
+# Install: sudo cp 99-keychron.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+KERNEL=="hidraw*", ATTRS{idVendor}=="3434", ATTRS{idProduct}=="01e0", MODE="0666"

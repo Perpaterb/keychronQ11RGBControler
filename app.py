@@ -158,6 +158,14 @@ def apply_preset(preset_num):
         if mode == "per_key" and preset.get("keys"):
             apply_per_key(preset)
         else:
+            # Disable direct mode if switching back to effects
+            try:
+                msg = bytearray(RAW_REPORT_SIZE)
+                msg[0] = 0x12  # HID_CMD_DIRECT_MODE
+                msg[1] = 0     # disable
+                send_and_receive(bytes(msg))
+            except Exception:
+                pass
             send_only(build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_EFFECT, preset["effect"]))
             send_only(build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_BRIGHTNESS, preset["brightness"]))
             send_only(build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_EFFECT_SPEED, preset["speed"]))
@@ -167,48 +175,73 @@ def apply_preset(preset_num):
 
 
 def apply_per_key(preset):
-    """Apply per-key colors as a global solid color (average of painted keys).
-    True per-key control requires custom QMK firmware."""
+    """Apply per-key colors using custom firmware HID commands."""
     keys = preset.get("keys", {})
     brightness = preset.get("brightness", 255)
 
-    # Calculate average color from all painted keys
-    if keys:
-        total_r, total_g, total_b, count = 0, 0, 0, 0
-        for rgb in keys.values():
-            total_r += rgb[0]
-            total_g += rgb[1]
-            total_b += rgb[2]
-            count += 1
-        avg_r = total_r // count
-        avg_g = total_g // count
-        avg_b = total_b // count
+    if not keys:
+        return
 
-        # Convert RGB to QMK HSV (hue 0-255, sat 0-255)
-        r, g, b = avg_r / 255, avg_g / 255, avg_b / 255
-        max_c, min_c = max(r, g, b), min(r, g, b)
-        diff = max_c - min_c
+    path = find_hidraw_device()
+    if not path:
+        raise ConnectionError("Keychron Q11 not found.")
 
-        if diff == 0:
-            hue = 0
-        elif max_c == r:
-            hue = (60 * ((g - b) / diff) % 360)
-        elif max_c == g:
-            hue = (60 * ((b - r) / diff) + 120)
-        else:
-            hue = (60 * ((r - g) / diff) + 240)
+    fd = os.open(path, os.O_RDWR)
+    try:
+        # Set brightness via VIA
+        msg = build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_BRIGHTNESS, brightness)
+        os.write(fd, msg)
+        os.read(fd, RAW_REPORT_SIZE)
 
-        hue_qmk = int((hue / 360) * 255) & 0xFF
-        sat_qmk = int((diff / max_c) * 255) if max_c > 0 else 0
-    else:
-        hue_qmk = 0
-        sat_qmk = 255
+        # Enable direct mode (custom firmware command 0x12)
+        msg = bytearray(RAW_REPORT_SIZE)
+        msg[0] = 0x12  # HID_CMD_DIRECT_MODE
+        msg[1] = 1     # enable
+        os.write(fd, bytes(msg))
+        os.read(fd, RAW_REPORT_SIZE)
 
-    send_only(build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_EFFECT, 1))  # Solid Color
-    send_only(build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_BRIGHTNESS, brightness))
-    send_only(build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_EFFECT_SPEED, 0))
-    send_only(build_msg(CMD_CUSTOM_SET_VALUE, CH_RGB_MATRIX, VAL_COLOR, hue_qmk, sat_qmk))
-    print(f"  Per-key preset applied as Solid Color (hue={hue_qmk}, sat={sat_qmk})")
+        # Send LED colors in batches of 9 (max per 32-byte message)
+        led_items = sorted([(int(k), v) for k, v in keys.items()])
+        i = 0
+        while i < len(led_items):
+            # Find contiguous runs for batch sending
+            batch_start = led_items[i][0]
+            batch = []
+            while i < len(led_items) and len(batch) < 9:
+                idx, rgb = led_items[i]
+                if idx == batch_start + len(batch):
+                    batch.append(rgb)
+                    i += 1
+                else:
+                    break
+
+            if len(batch) > 1:
+                # Batch send: [0x11, start, count, R,G,B, R,G,B, ...]
+                msg = bytearray(RAW_REPORT_SIZE)
+                msg[0] = 0x11  # HID_CMD_SET_LED_BATCH
+                msg[1] = batch_start
+                msg[2] = len(batch)
+                for j, rgb in enumerate(batch):
+                    msg[3 + j * 3] = rgb[0]
+                    msg[4 + j * 3] = rgb[1]
+                    msg[5 + j * 3] = rgb[2]
+                os.write(fd, bytes(msg))
+                os.read(fd, RAW_REPORT_SIZE)
+            else:
+                # Single LED: [0x10, index, R, G, B]
+                idx, rgb = led_items[i - 1][0], batch[0]
+                msg = bytearray(RAW_REPORT_SIZE)
+                msg[0] = 0x10  # HID_CMD_SET_LED
+                msg[1] = idx
+                msg[2] = rgb[0]
+                msg[3] = rgb[1]
+                msg[4] = rgb[2]
+                os.write(fd, bytes(msg))
+                os.read(fd, RAW_REPORT_SIZE)
+
+        print(f"  Per-key preset applied: {len(keys)} LEDs set")
+    finally:
+        os.close(fd)
 
 
 def start_key_listener():
