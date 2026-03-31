@@ -88,11 +88,22 @@ void housekeeping_task_user(void) {
 }
 
 // --- RGB override ---
+#define CAPS_LOCK_LED 23
+
 bool rgb_matrix_indicators_advanced_user(uint8_t led_min, uint8_t led_max) {
-    if (!direct_mode) return false;
-    for (uint8_t i = led_min; i < led_max && i < LED_COUNT; i++) {
-        rgb_matrix_set_color(i, led_buffer[i][0], led_buffer[i][1], led_buffer[i][2]);
+    if (direct_mode) {
+        for (uint8_t i = led_min; i < led_max && i < LED_COUNT; i++) {
+            rgb_matrix_set_color(i, led_buffer[i][0], led_buffer[i][1], led_buffer[i][2]);
+        }
     }
+
+    // Caps lock indicator: white overlay in all modes
+    if (host_keyboard_led_state().caps_lock) {
+        if (CAPS_LOCK_LED >= led_min && CAPS_LOCK_LED < led_max) {
+            rgb_matrix_set_color(CAPS_LOCK_LED, 255, 255, 255);
+        }
+    }
+
     return false;
 }
 
