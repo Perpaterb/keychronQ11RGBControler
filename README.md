@@ -104,14 +104,28 @@ Stock Keychron firmware only supports global RGB settings via HID. The custom fi
 
 The pre-built firmware binary is at `firmware/keychron_q11_ansi_encoder_custom.bin`. The QMK keymap source is at `firmware/qmk_keymap/`.
 
-1. **Enter bootloader mode**: unplug the keyboard, hold the Esc key, plug it back in. The keyboard should appear as a DFU device.
+The Q11 is a split keyboard -- **both halves must be flashed separately**.
 
-2. **Flash**:
+#### Left half (master)
+
+1. Unplug the keyboard.
+2. Hold the **Esc** key while plugging the USB-C cable into the **left half**. It enters DFU bootloader mode.
+3. Flash:
    ```bash
    sudo dfu-util -a 0 -d 0483:DF11 -s 0x08000000:leave -D firmware/keychron_q11_ansi_encoder_custom.bin
    ```
+4. The left half reboots automatically.
 
-3. The keyboard will reboot with the new firmware. All normal keyboard functionality is preserved.
+#### Right half (slave)
+
+1. Unplug the USB-C cable **and** the TRRS bridging cable from the right half.
+2. Locate the small reset hole/button on the right PCB (near the right space bar switch area -- you may need to remove keycaps to access it).
+3. Press and hold the **reset button**, then plug the USB-C cable into the **right half**. It enters DFU bootloader mode.
+4. Flash with the same command:
+   ```bash
+   sudo dfu-util -a 0 -d 0483:DF11 -s 0x08000000:leave -D firmware/keychron_q11_ansi_encoder_custom.bin
+   ```
+5. The right half reboots. Reconnect normally: USB-C to left half, TRRS cable between halves.
 
 ### Building from source
 
